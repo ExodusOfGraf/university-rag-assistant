@@ -1,0 +1,39 @@
+# Окружение
+.env
+*.env.local
+
+# База данных векторов
+chroma_db/
+
+# Модели (слишком большие для git)
+models/llm/*.gguf
+models/embed/sbert_large_nlu_ru/
+Qwen2.5-7B-Instruct/
+Qwen2.5-7B-Instruct-GGUF/
+sbert_large_nlu_ru/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

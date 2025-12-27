@@ -1,0 +1,31 @@
+services:
+  # Сервис Нейросети (FastAPI + GPU)
+  llm_service:
+    build: ./llm_service
+    container_name: fast_llm
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models/llm:/models/llm  # Прокидываем скачанную модель
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+
+  # Сервис Бота
+  bot_service:
+    build: ./bot_service
+    container_name: student_bot
+    volumes:
+      - ./models/embed:/models/embed  # Прокидываем Sbert
+      - ./chroma_db:/app/chroma_db    # База данных векторов
+      - ./data:/app/data              # Данные для загрузки
+    env_file:
+      - .env
+    depends_on:
+      - llm_service
