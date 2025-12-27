@@ -221,9 +221,12 @@ def search_documents(query: str, collection_name: str = None, filters: dict = No
 
 def detect_intent(query: str) -> str:
     q = query.lower()
-    if any(kw in q for kw in ["расписание", "экзамен", "сессия", "когда", "зачет"]):
+    # Расписание — используем частичное совпадение для корней слов
+    schedule_keywords = ["расписан", "экзамен", "сессия", "сессии", "когда", "зачет", "зачёт", 
+                         "предмет", "пара", "пары", "недел", "занятия", "занятие", "лекци", "семинар"]
+    if any(kw in q for kw in schedule_keywords):
         return "schedule"
-    elif any(kw in q for kw in ["кафедра", "преподаватель", "деканат"]):
+    elif any(kw in q for kw in ["кафедр", "преподаватель", "деканат", "декан"]):
         return "department"
     return "general"
 
@@ -291,10 +294,16 @@ async def chat(req: ChatRequest):
     group = req.group or user_groups.get(req.user_id)
     
     # Поиск контекста
-    filters = {"group": group} if intent == "schedule" and group else None
-    collection = "schedules" if intent == "schedule" else None
-    
-    results = search_documents(req.message, collection_name=collection, filters=filters, limit=3)
+    # Для расписания ищем с фильтром по группе, если группа указана
+    # Иначе ищем по всем коллекциям
+    if intent == "schedule" and group:
+        filters = {"group": group}
+        results = search_documents(req.message, collection_name="schedules", filters=filters, limit=5)
+    elif intent == "schedule" and not group:
+        # Если группа не указана, всё равно ищем в расписаниях
+        results = search_documents(req.message, collection_name="schedules", filters=None, limit=5)
+    else:
+        results = search_documents(req.message, collection_name=None, filters=None, limit=3)
     
     # Формируем промпт
     if results:
