@@ -1,234 +1,392 @@
 # 🎓 Интеллектуальная справочная система для студентов
 
-RAG-система на базе Telegram бота для ответов на вопросы студентов университета.
+RAG-система с универсальным API для интеграции в любые платформы.
 
 ## 📋 Описание
 
 Дипломный проект: **"Разработка интеллектуальной справочной системы для студентов образовательного учреждения"**
 
-Система позволяет студентам получать информацию о:
-- 📅 Расписании экзаменов и сессии
-- 🏛 Кафедрах и преподавателях
-- 📋 Деканате, библиотеке и других службах
+Система позволяет получать информацию об университете
 
 ## 🏗 Архитектура
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Telegram      │────▶│   Bot Service   │────▶│   LLM Service   │
-│   Пользователь  │◀────│   (Python)      │◀────│   (FastAPI)     │
-└─────────────────┘     └────────┬────────┘     └─────────────────┘
-                                 │                       │
-                        ┌────────▼────────┐     ┌───────▼───────┐
-                        │    ChromaDB     │     │  Qwen 2.5-7B  │
-                        │  (векторная БД) │     │    (GGUF)     │
-                        └────────┬────────┘     └───────────────┘
-                                 │
-                        ┌────────▼────────┐
-                        │ sbert_large_    │
-                        │ nlu_ru          │
-                        │ (эмбеддинги)    │
-                        └─────────────────┘
+┌─────────────────┐
+│  Telegram Bot   │──────┐
+└─────────────────┘      │
+                         ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  Web Frontend   │───▶│    RAG API      │───▶│   LLM Service   │
+└─────────────────┘    │   (FastAPI)     │    │  (Qwen + GPU)   │
+                       │                 │    └─────────────────┘
+┌─────────────────┐    │  POST /chat     │
+│  Mobile App     │───▶│  POST /search   │───▶┌─────────────────┐
+└─────────────────┘    │  GET /groups    │    │    ChromaDB     │
+                       │  Admin API      │    │   + sbert       │
+                       └─────────────────┘    └─────────────────┘
 ```
+
+**Ключевая особенность:** RAG API — универсальный бэкенд, который можно подключить к любому фронтенду.
 
 ## 🛠 Технологии
 
 | Компонент | Технология | Назначение |
 |-----------|------------|------------|
-| LLM | Qwen2.5-7B-Instruct (GGUF) | Генерация ответов |
-| Embeddings | sbert_large_nlu_ru | Векторизация текста (русский язык) |
-| Vector DB | ChromaDB | Хранение и поиск по векторам |
-| Backend | FastAPI + llama-cpp-python | API для LLM с GPU ускорением |
-| Bot | aiogram 3.x | Telegram бот |
-| Контейнеризация | Docker + NVIDIA Container Toolkit | Деплой с GPU |
+| RAG API | FastAPI | Универсальный бэкенд |
+| LLM | Qwen2.5-7B (GGUF) | Генерация ответов |
+| Embeddings | sbert_large_nlu_ru | Векторизация (русский) |
+| Vector DB | ChromaDB | Семантический поиск |
+| Bot | aiogram 3.x | Telegram клиент |
+| GPU | llama-cpp-python + CUDA | Ускорение инференса |
 
 ## 📁 Структура проекта
 
 ```
 diploma_rag/
-├── bot_service/           # Telegram бот
-│   ├── bot.py            # Основной код бота
-│   ├── moderation.py     # Система модерации
-│   └── Dockerfile
-├── llm_service/           # LLM API сервис
+├── rag_service/           # 🔌 Универсальный RAG API
 │   ├── main.py           # FastAPI приложение
 │   └── Dockerfile
-├── data/                  # Данные для RAG
-│   ├── schedules/        # Расписания групп (JSON)
-│   ├── departments/      # Информация о кафедрах
+├── llm_service/           # 🧠 LLM сервис (GPU)
+│   ├── main.py           # Qwen inference
+│   └── Dockerfile
+├── bot_service/           # 🤖 Telegram бот (клиент)
+│   ├── bot.py            # aiogram бот
+│   └── Dockerfile
+├── data/                  # 📚 Данные для RAG
+│   ├── schedules/        # Расписания (JSON)
+│   ├── departments/      # Кафедры
 │   └── info/             # Общая информация
-├── models/                # Модели (не в git)
-│   ├── llm/              # GGUF модель Qwen
-│   └── embed/            # sbert_large_nlu_ru
-├── scripts/               # Вспомогательные скрипты
-│   └── load_data.py      # Загрузка данных в ChromaDB
-├── chroma_db/             # База векторов (не в git)
+├── models/                # 🗂 Модели (не в git)
+│   ├── llm/              # GGUF модель
+│   └── embed/            # sbert
 ├── docker-compose.yml
-├── .env                   # Конфигурация (не в git)
+├── .env                   # Конфигурация
 └── README.md
 ```
 
-## 🚀 Установка и запуск
+## 🚀 Быстрый старт
 
-### Требования
-
-- Docker + Docker Compose
-- NVIDIA GPU (RTX 3080 или аналог)
-- NVIDIA Container Toolkit
-- ~10 GB свободного места для моделей
-
-### 1. Клонирование репозитория
-
+### 1. Клонирование
 ```bash
 git clone https://github.com/your-username/diploma_rag.git
 cd diploma_rag
 ```
 
-### 2. Скачивание моделей
-
-**LLM модель (Qwen2.5-7B-Instruct GGUF):**
+### 2. Модели
 ```bash
-# Скачать с HuggingFace: https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF
-# Файл: qwen2.5-7b-instruct-q3_k_m.gguf (~3.5 GB)
-# Положить в: models/llm/
-```
+# LLM (Qwen GGUF ~3.5GB)
+# Скачать: https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF
+# Файл qwen2.5-7b-instruct-q3_k_m.gguf → models/llm/
 
-**Embedding модель (sbert_large_nlu_ru):**
-```bash
-# Клонировать с HuggingFace
+# Embeddings
 git lfs install
 git clone https://huggingface.co/ai-forever/sbert_large_nlu_ru models/embed/sbert_large_nlu_ru
 ```
 
-### 3. Настройка окружения
-
-Создайте файл `.env`:
-```env
-TELEGRAM_TOKEN=ваш_токен_от_BotFather
-ADMIN_USERNAME=ваш_telegram_username
+### 3. Конфигурация
+```bash
+cp .env.example .env
+# Отредактируйте .env
 ```
 
 ### 4. Запуск
-
 ```bash
 docker-compose up --build
 ```
 
-Первый запуск займёт время на:
-- Сборку образов
-- Загрузку модели в GPU
-- Индексацию данных в ChromaDB
+## 🔌 RAG API Endpoints
 
-## 💬 Использование бота
+### Основные
 
-### Команды пользователя
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| POST | `/chat` | Чат с RAG (поиск + генерация) |
+| POST | `/search` | Поиск без генерации |
+| GET | `/groups` | Список групп |
+| GET | `/health` | Статус системы |
 
-| Команда | Описание |
-|---------|----------|
-| `/start` | Главное меню |
-| `📅 Указать группу` | Выбор учебной группы |
-| `💬 Начать диалог` | Начать общение с ботом |
-| `🆘 Тех. поддержка` | Создать обращение |
+### Пользователи
 
-### Команды администратора
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| POST | `/users` | Создать пользователя |
+| GET | `/users/{id}` | Получить пользователя |
+| PUT | `/users/{id}/group` | Установить группу |
 
-| Команда | Описание |
-|---------|----------|
-| `/admin` | Админ-панель |
-| `📋 Тикеты` | Просмотр обращений и нарушений |
-| `🚫 Заблокированные` | Управление блокировками |
-| `📊 Статистика` | Статистика использования |
+### Админ (требует X-API-Key)
 
-## 🔧 Как работает RAG
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| GET | `/admin/stats` | Статистика |
+| GET | `/admin/users` | Список пользователей |
+| POST | `/admin/users/{id}/block` | Заблокировать |
+| POST | `/admin/users/{id}/unblock` | Разблокировать |
+| POST | `/admin/reload` | Перезагрузить данные |
 
-### 1. Загрузка данных
+## 💡 Примеры использования API
 
+### Python
+```python
+import requests
+
+RAG_URL = "http://localhost:8001"
+
+# Чат
+response = requests.post(f"{RAG_URL}/chat", json={
+    "message": "Когда экзамен по философии?",
+    "user_id": "user123",
+    "group": "ИВТ-21"
+})
+print(response.json()["response"])
+
+# Поиск
+results = requests.post(f"{RAG_URL}/search", json={
+    "query": "кафедра информатики",
+    "limit": 5
+})
+for r in results.json()["results"]:
+    print(r["text"])
 ```
-JSON файлы → sbert_large_nlu_ru → векторы → ChromaDB
+
+### JavaScript
+```javascript
+const response = await fetch('http://localhost:8001/chat', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+        message: 'Где находится деканат?',
+        user_id: 'web_user_1'
+    })
+});
+const data = await response.json();
+console.log(data.response);
 ```
 
-Данные из `data/` преобразуются в векторы и сохраняются в ChromaDB с метаданными (группа, тип, предмет).
-
-### 2. Поиск (Retrieval)
-
-```
-Вопрос пользователя → sbert → вектор → ChromaDB → топ-3 релевантных документа
-```
-
-Семантический поиск находит документы, похожие по смыслу, а не по ключевым словам.
-
-### 3. Генерация (Generation)
-
-```
-Контекст + Вопрос → Qwen LLM → Ответ
+### cURL
+```bash
+curl -X POST http://localhost:8001/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Расписание ИВТ-21", "user_id": "test"}'
 ```
 
-LLM получает найденный контекст и генерирует ответ на его основе.
+## 🌐 Интеграция с веб-сайтом
 
-## 📊 Система модерации
+RAG API готов для интеграции с любым фронтендом:
 
-- **Автоматическое определение нарушений:**
-  - 🤬 Нецензурная лексика
-  - 😡 Агрессивное поведение
-  - ⚠️ Опасный контент
+1. **React/Vue/Angular** — используйте fetch/axios для запросов к `/chat`
+2. **Виджет чата** — встройте iframe или JS-виджет
+3. **REST клиент** — любой HTTP клиент
 
-- **Система предупреждений:** 3 нарушения = автоблокировка
-- **Тикеты:** Все нарушения и обращения фиксируются
+Пример минимального веб-чата:
+```html
+<div id="chat"></div>
+<input id="input" placeholder="Задайте вопрос...">
+<button onclick="send()">Отправить</button>
+
+<script>
+async function send() {
+    const msg = document.getElementById('input').value;
+    const res = await fetch('http://localhost:8001/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message: msg, user_id: 'web'})
+    });
+    const data = await res.json();
+    document.getElementById('chat').innerHTML += `<p>${data.response}</p>`;
+}
+</script>
+```
 
 ## 📝 Добавление данных
 
-### Расписание группы
+Данные хранятся в JSON файлах в папке `data/`. После изменений:
 
-Создайте файл `data/schedules/schedule_ГРУППА.json`:
-```json
-{
-  "group": "ИВТ-21",
-  "faculty": "Факультет информационных технологий",
-  "course": 4,
-  "session": "Зимняя сессия 2024-2025",
-  "exams": [
-    {
-      "subject": "Название предмета",
-      "date": "2025-01-15",
-      "time": "09:00",
-      "room": "305",
-      "building": "Корпус Б",
-      "teacher": "Иванов И.И."
-    }
-  ]
-}
+```bash
+# Перезагрузка через API
+curl -X POST http://localhost:8001/admin/reload \
+  -H "X-API-Key: your_key"
+
+# Или перезапуск с очисткой базы
+rm -rf chroma_db && docker-compose restart rag_service
 ```
-
-### Информация о кафедре
-
-Добавьте в `data/departments/departments.json`:
-```json
-{
-  "name": "Название кафедры",
-  "short_name": "КАФ",
-  "faculty": "Факультет",
-  "building": "Корпус",
-  "room": "123",
-  "phone": "+7 (495) 123-45-67",
-  "email": "kaf@university.ru",
-  "head": "ФИО заведующего",
-  "head_title": "д.т.н., профессор",
-  "work_hours": "Пн-Пт 09:00-17:00"
-}
-```
-
-После добавления данных перезапустите бота или удалите `chroma_db/` для переиндексации.
 
 ## 🔒 Безопасность
 
-- Токен бота и username админа хранятся в `.env` (не в git)
-- Модели не загружаются в репозиторий
-- База данных исключена из git
+- `RAG_API_KEY` — защита админских endpoints
+- Модерация сообщений встроена в API
+- Система предупреждений и блокировок
+
+## 🐳 Docker-архитектура
+
+Система состоит из 3 изолированных контейнеров, связанных через внутреннюю сеть Docker:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Docker Network                                │
+│                                                                      │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐          │
+│  │  telegram_   │    │  rag_        │    │  llm_        │          │
+│  │  bot         │───▶│  service     │───▶│  service     │          │
+│  │              │    │              │    │              │          │
+│  │  Port: -     │    │  Port: 8001  │    │  Port: 8000  │          │
+│  │  aiogram     │    │  FastAPI     │    │  FastAPI     │          │
+│  └──────────────┘    └──────┬───────┘    └──────┬───────┘          │
+│                             │                   │                   │
+│                      ┌──────▼───────┐    ┌──────▼───────┐          │
+│                      │  ChromaDB    │    │  Qwen GGUF   │          │
+│                      │  + sbert     │    │  + CUDA      │          │
+│                      │  (Volume)    │    │  (GPU)       │          │
+│                      └──────────────┘    └──────────────┘          │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Контейнеры
+
+| Контейнер | Образ | Порт | Назначение |
+|-----------|-------|------|------------|
+| `llm_service` | nvidia/cuda + llama-cpp | 8000 | LLM инференс на GPU |
+| `rag_service` | python:3.10-slim | 8001 | RAG API + ChromaDB + sbert |
+| `telegram_bot` | python:3.10-slim | - | Telegram клиент |
+
+### Volumes (примонтированные папки)
+
+| Volume | Контейнер | Путь в контейнере | Назначение |
+|--------|-----------|-------------------|------------|
+| `./models/llm` | llm_service | `/models/llm` | GGUF модель Qwen |
+| `./models/embed` | rag_service | `/models/embed` | sbert модель |
+| `./chroma_db` | rag_service | `/app/chroma_db` | Векторная БД |
+| `./data` | rag_service | `/app/data` | JSON данные |
+
+### Порядок запуска (depends_on)
+
+```
+1. llm_service    ← Запускается первым (GPU, загрузка модели ~30 сек)
+2. rag_service    ← Ждёт llm_service (загрузка sbert, индексация)
+3. telegram_bot   ← Ждёт rag_service (подключение к API)
+```
+
+## 🔗 Связка Telegram бота с системой
+
+### Принцип работы
+
+Telegram бот — это **тонкий клиент**, который:
+1. Принимает сообщения от пользователей
+2. Отправляет HTTP-запросы к RAG API
+3. Возвращает ответы пользователям
+
+```
+Пользователь          Telegram Bot           RAG API            LLM Service
+     │                     │                    │                    │
+     │  "Когда экзамен?"   │                    │                    │
+     │────────────────────▶│                    │                    │
+     │                     │  POST /chat        │                    │
+     │                     │───────────────────▶│                    │
+     │                     │                    │  1. Поиск в ChromaDB
+     │                     │                    │  2. Формирование промпта
+     │                     │                    │  POST /generate    │
+     │                     │                    │───────────────────▶│
+     │                     │                    │                    │ Qwen генерирует
+     │                     │                    │◀───────────────────│
+     │                     │◀───────────────────│                    │
+     │  "Экзамен 20 янв."  │                    │                    │
+     │◀────────────────────│                    │                    │
+```
+
+### Код связки (bot_service/bot.py)
+
+```python
+class RAGClient:
+    """HTTP-клиент для RAG API"""
+    
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+    
+    def chat(self, message: str, user_id: str, group: str = None) -> dict:
+        """Отправка сообщения в RAG API"""
+        response = requests.post(
+            f"{self.base_url}/chat",
+            json={
+                "message": message,
+                "user_id": user_id,
+                "group": group
+            }
+        )
+        return response.json()
+
+# Инициализация клиента
+rag = RAGClient("http://rag_service:8001")
+
+# Использование в обработчике
+@dp.message(DialogStates.in_chat)
+async def handle_chat(msg: types.Message):
+    result = rag.chat(msg.text, str(msg.from_user.id), user_group)
+    await msg.answer(result["response"])
+```
+
+### Переменные окружения
+
+```yaml
+# docker-compose.yml
+bot_service:
+  environment:
+    - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}      # Токен бота
+    - ADMIN_USERNAME=${ADMIN_USERNAME}      # Username админа
+    - RAG_API_URL=http://rag_service:8001   # URL RAG API (внутренняя сеть)
+```
+
+## 🔄 Поток данных RAG
+
+### 1. Загрузка данных (при старте)
+
+```
+data/*.json → sbert.encode() → векторы → ChromaDB
+```
+
+### 2. Обработка запроса
+
+```
+Вопрос пользователя
+        │
+        ▼
+┌───────────────────┐
+│ sbert.encode()    │  ← Векторизация вопроса
+└───────┬───────────┘
+        │
+        ▼
+┌───────────────────┐
+│ ChromaDB.query()  │  ← Поиск похожих документов (cosine similarity)
+└───────┬───────────┘
+        │
+        ▼
+┌───────────────────┐
+│ Формирование      │  ← "Контекст: ... Вопрос: ..."
+│ промпта           │
+└───────┬───────────┘
+        │
+        ▼
+┌───────────────────┐
+│ Qwen LLM          │  ← Генерация ответа на GPU
+└───────┬───────────┘
+        │
+        ▼
+    Ответ пользователю
+```
+
+## 🛡 Система модерации
+
+Встроена в RAG API (`/chat` endpoint):
+
+```python
+# При каждом запросе:
+1. Проверка блокировки пользователя
+2. Проверка сообщения на нарушения (regex паттерны)
+3. Если нарушение:
+   - Увеличение счётчика предупреждений
+   - При 3 нарушениях — автоблокировка
+   - Возврат ошибки 400/403
+4. Если OK — обработка RAG
+```
 
 ## 📄 Лицензия
 
 MIT License
-
-## 👤 Автор
-
-Дипломный проект студента [Ваше имя]

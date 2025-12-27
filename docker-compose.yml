@@ -1,12 +1,12 @@
 services:
-  # Сервис Нейросети (FastAPI + GPU)
+  # LLM Service (Qwen + GPU)
   llm_service:
     build: ./llm_service
-    container_name: fast_llm
+    container_name: llm_service
     ports:
       - "8000:8000"
     volumes:
-      - ./models/llm:/models/llm  # Прокидываем скачанную модель
+      - ./models/llm:/models/llm
     deploy:
       resources:
         reservations:
@@ -16,16 +16,32 @@ services:
               capabilities: [gpu]
     environment:
       - CUDA_VISIBLE_DEVICES=0
+      - SYSTEM_PROMPT=${SYSTEM_PROMPT:-Ты — справочный помощник университета. Отвечай на русском языке, вежливо и по делу.}
 
-  # Сервис Бота
-  bot_service:
-    build: ./bot_service
-    container_name: student_bot
+  # RAG API Service (универсальный бэкенд)
+  rag_service:
+    build: ./rag_service
+    container_name: rag_service
+    ports:
+      - "8001:8001"
     volumes:
-      - ./models/embed:/models/embed  # Прокидываем Sbert
-      - ./chroma_db:/app/chroma_db    # База данных векторов
-      - ./data:/app/data              # Данные для загрузки
-    env_file:
-      - .env
+      - ./models/embed:/models/embed
+      - ./chroma_db:/app/chroma_db
+      - ./data:/app/data
+    environment:
+      - LLM_API_URL=http://llm_service:8000/generate
+      - RAG_API_KEY=${RAG_API_KEY:-}
     depends_on:
       - llm_service
+
+  # Telegram Bot (клиент RAG API)
+  bot_service:
+    build: ./bot_service
+    container_name: telegram_bot
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - ADMIN_USERNAME=${ADMIN_USERNAME}
+      - RAG_API_URL=http://rag_service:8001
+      - RAG_API_KEY=${RAG_API_KEY:-}
+    depends_on:
+      - rag_service
